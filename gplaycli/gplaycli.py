@@ -394,6 +394,92 @@ class GPlaycli:
 			print()
 		return all_results
 
+	def __get_categories(self):
+		results = self.api.browse()
+
+		# extract all category ids
+		categories = []
+		for cat in results['category']:
+			try:
+				cat_id = cat.get('unknownCategoryContainer').get('categoryIdContainer').get('categoryId')
+				categories.append(cat_id)
+			except AttributeError:
+				# not the right dict structure
+				continue
+		return categories
+
+
+	@hooks.connected
+	def browse(self, category_id, subcat, nb_results=10, free_only=True, include_headers=True):
+		CATEGORIES = self.__get_categories()
+
+		category_id = category_id.upper()
+		if category_id not in CATEGORIES:
+			logger.error('Category must be one of the following: {}'.format(', '.join(CATEGORIES)))
+			return
+
+		try:
+			# ['apps_topselling_free', 'apps_topgrossing', 'apps_movers_shakers', 'apps_topselling_paid']
+			results = self.api.list(category_id, ctr=subcat, nb_results=nb_results)
+		except IndexError:
+			results = []
+
+			if not results:
+				logger.info("No result")
+				return
+
+		all_results = []
+		if include_headers:
+			# Name of the columns
+			col_names = ["Title", "Creator", "Size", "Downloads", "Last Update", "AppID", "Version", "Rating"]
+			all_results.append(col_names)
+
+		# Compute results values
+		for app in results:
+			# skip that app if it not free
+			# or if it's beta (pre-registration)
+			if (len(app['offer']) == 0  # beta apps (pre-registration)
+				or free_only
+				and app['offer'][0]['checkoutFlowRequired']  # not free to download
+			):
+				continue
+			app_details = app['details']['appDetails']
+			detail = [app['title'],
+			   app['creator'],
+			   app_details['installationSize'],
+			   app_details['numDownloads'],
+			   app_details['uploadDate'],
+			   app['docid'],
+			   app_details['versionCode'],
+			   "%.3f" % app['aggregateRating']['starRating']
+			   ]
+			if len(all_results) < int(nb_results) + 1:
+				all_results.append(detail)
+
+		self.print_table(all_results)
+		return all_results
+
+	def print_table(self, all_results):
+		if len(all_results) == 0:
+			print()
+			return
+
+		# Print a nice table
+		col_width = []
+		for column_indice in range(len(all_results[0])):
+			col_length = max([len("%s" % row[column_indice]) for row in all_results])
+			col_width.append(col_length + 2)
+
+		for result in all_results:
+			for indice, item in enumerate(result):
+				out = "".join(str(item).strip().ljust(col_width[indice]))
+				try:
+					print(out, end='')
+				except UnicodeEncodeError:
+					out = out.encode('utf-8', errors='replace')
+					print(out, end='')
+			print()
+
 	########## End public methods ##########
 
 	########## Internal methods ##########
@@ -627,6 +713,12 @@ def main():
 	parser.add_argument('-c',  '--config',				help="Use a different config file than gplaycli.conf", metavar="CONF_FILE", nargs=1)
 	parser.add_argument('-p',  '--progress',			help="Prompt a progress bar while downloading packages", action='store_true')
 	parser.add_argument('-L',  '--log',					help="Enable logging of apps status in separate logging files", action='store_true', default=False)
+    
+    # add browse option
+	parser.add_argument('-n',  '--number',				help="For the search option, returns the given number of matching applications", metavar="NUMBER", type=int)
+	parser.add_argument('-b',  '--browse',				help="Browse a category in Google Play Store", metavar="CATEGORY")
+	subcats = ['apps_topselling_free', 'apps_topgrossing', 'apps_movers_shakers', 'apps_topselling_paid']
+	parser.add_argument('-bs', '--bsubcat',		help="Select subcategory for browsing a category from: {}".format(', '.join(subcats)), metavar="SUBCATEGORY", type=str, choices=subcats, default=subcats[0])
 
 	if len(sys.argv) < 2:
 		sys.argv.append("-h")
@@ -649,6 +741,18 @@ def main():
 	if args.search:
 		cli.verbose = True
 		cli.search(args.search, not args.paid)
+	if args.browse:
+		cli.verbose = True
+		if args.number:
+			nb_results = args.number
+		else:
+			nb_results = 10
+		try:
+			cli.browse(args.browse, args.bsubcat, nb_results)  # TODO
+		except KeyError:
+			header = ['Title', 'Creator', 'Size', 'Downloads', 'Last Update', 'AppID', 'Version', 'Rating']
+			cli.print_table([header])
+
 
 	if args.file:
 		args.download = util.load_from_file(args.file)
