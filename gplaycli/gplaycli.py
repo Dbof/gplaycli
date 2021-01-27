@@ -410,7 +410,7 @@ class GPlaycli:
 
 
 	@hooks.connected
-	def browse(self, category_id, subcat, nb_results=10, free_only=True, include_headers=True):
+	def browse(self, category_id, subcat, nb_results=None, free_only=True, include_headers=True):
 		CATEGORIES = self.__get_categories()
 
 		category_id = category_id.upper()
@@ -435,6 +435,7 @@ class GPlaycli:
 			all_results.append(col_names)
 
 		# Compute results values
+		max_results = nb_results if nb_results is not None else float('inf')
 		for app in results:
 			# skip that app if it not free
 			# or if it's beta (pre-registration)
@@ -453,7 +454,7 @@ class GPlaycli:
 			   app_details['versionCode'],
 			   "%.3f" % app['aggregateRating']['starRating']
 			   ]
-			if len(all_results) < int(nb_results) + 1:
+			if len(all_results) < max_results + 1:
 				all_results.append(detail)
 
 		self.print_table(all_results)
@@ -716,7 +717,8 @@ def main():
     
     # add browse option
 	parser.add_argument('-n',  '--number',				help="For the search option, returns the given number of matching applications", metavar="NUMBER", type=int)
-	parser.add_argument('-b',  '--browse',				help="Browse a category in Google Play Store", metavar="CATEGORY")
+	cats = ['ART_AND_DESIGN', 'AUTO_AND_VEHICLES', 'BEAUTY', 'BOOKS_AND_REFERENCE', 'BUSINESS', 'COMICS', 'COMMUNICATION', 'DATING', 'EDUCATION', 'ENTERTAINMENT', 'EVENTS', 'FAMILY', 'FINANCE', 'FOOD_AND_DRINK', 'GAME', 'HEALTH_AND_FITNESS', 'HOUSE_AND_HOME', 'LIBRARIES_AND_DEMO', 'LIFESTYLE', 'MAPS_AND_NAVIGATION', 'MEDICAL', 'MUSIC_AND_AUDIO', 'NEWS_AND_MAGAZINES', 'PARENTING', 'PERSONALIZATION', 'PHOTOGRAPHY', 'PRODUCTIVITY', 'SHOPPING', 'SOCIAL', 'SPORTS', 'TOOLS', 'TRAVEL_AND_LOCAL', 'VIDEO_PLAYERS', 'ANDROID_WEAR', 'WEATHER']
+	parser.add_argument('-b',  '--browse',				help="Browse a category in Google Play Store: {}".format(', '.join(cats)), metavar="CATEGORY")
 	subcats = ['apps_topselling_free', 'apps_topgrossing', 'apps_movers_shakers', 'apps_topselling_paid']
 	parser.add_argument('-bs', '--bsubcat',		help="Select subcategory for browsing a category from: {}".format(', '.join(subcats)), metavar="SUBCATEGORY", type=str, choices=subcats, default=subcats[0])
 
@@ -746,7 +748,7 @@ def main():
 		if args.number:
 			nb_results = args.number
 		else:
-			nb_results = 10
+			nb_results = None
 		try:
 			cli.browse(args.browse, args.bsubcat, nb_results)  # TODO
 		except KeyError:
