@@ -1,0 +1,5 @@
+#!/bin/sh
+sudo docker run --rm --name gplaycli \
+    -v ~/.config/gplaycli/:/root/.config/gplaycli \
+    -v ~/.cache/gplaycli/:/root/.cache/gplaycli/  \
+    dbof/gplaycli -c /root/.config/gplaycli/gplaycli.conf $@
